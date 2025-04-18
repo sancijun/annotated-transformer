@@ -25,68 +25,62 @@
 #
 # <img src="images/aiayn.png" width="70%"/>
 #
-# * *v2022: Austin Huang, Suraj Subramanian, Jonathan Sum, Khalid Almubarak,
-#    and Stella Biderman.*
-# * *[Original](https://nlp.seas.harvard.edu/2018/04/03/attention.html):
+# * *2022版本: Austin Huang, Suraj Subramanian, Jonathan Sum, Khalid Almubarak,
+#    以及 Stella Biderman.*
+# * *[原版](https://nlp.seas.harvard.edu/2018/04/03/attention.html):
 #    [Sasha Rush](http://rush-nlp.com/).*
 #
 #
-# The Transformer has been on a lot of
-# people's minds over the last <s>year</s> five years.
-# This post presents an annotated version of the paper in the
-# form of a line-by-line implementation. It reorders and deletes
-# some sections from the original paper and adds comments
-# throughout. This document itself is a working notebook, and should
-# be a completely usable implementation.
-# Code is available
-# [here](https://github.com/harvardnlp/annotated-transformer/).
+# 在过去的五年里，Transformer一直是很多人关注的焦点。
+# 本文以逐行实现的形式呈现了论文的注解版本。相比原论文，本文重新组织并删除了
+# 一些章节，并在整篇文章中添加了注释。这份文档本身就是一个可运行的笔记本，
+# 应该是一个完全可用的实现。
+# 代码可在[此处](https://github.com/harvardnlp/annotated-transformer/)获取。
 #
 
 
 # %% [markdown] id="RSntDwKhTsp-"
-# <h3> Table of Contents </h3>
+# <h3> 目录 </h3>
 # <ul>
-# <li><a href="#prelims">Prelims</a></li>
-# <li><a href="#background">Background</a></li>
-# <li><a href="#part-1-model-architecture">Part 1: Model Architecture</a></li>
-# <li><a href="#model-architecture">Model Architecture</a><ul>
-# <li><a href="#encoder-and-decoder-stacks">Encoder and Decoder Stacks</a></li>
-# <li><a href="#position-wise-feed-forward-networks">Position-wise Feed-Forward
-# Networks</a></li>
-# <li><a href="#embeddings-and-softmax">Embeddings and Softmax</a></li>
-# <li><a href="#positional-encoding">Positional Encoding</a></li>
-# <li><a href="#full-model">Full Model</a></li>
-# <li><a href="#inference">Inference:</a></li>
+# <li><a href="#prelims">准备工作</a></li>
+# <li><a href="#background">背景</a></li>
+# <li><a href="#part-1-model-architecture">第一部分：模型架构</a></li>
+# <li><a href="#model-architecture">模型架构</a><ul>
+# <li><a href="#encoder-and-decoder-stacks">编码器和解码器栈</a></li>
+# <li><a href="#position-wise-feed-forward-networks">位置前馈网络</a></li>
+# <li><a href="#embeddings-and-softmax">嵌入和Softmax</a></li>
+# <li><a href="#positional-encoding">位置编码</a></li>
+# <li><a href="#full-model">完整模型</a></li>
+# <li><a href="#inference">推理</a></li>
 # </ul></li>
-# <li><a href="#part-2-model-training">Part 2: Model Training</a></li>
-# <li><a href="#training">Training</a><ul>
-# <li><a href="#batches-and-masking">Batches and Masking</a></li>
-# <li><a href="#training-loop">Training Loop</a></li>
-# <li><a href="#training-data-and-batching">Training Data and Batching</a></li>
-# <li><a href="#hardware-and-schedule">Hardware and Schedule</a></li>
-# <li><a href="#optimizer">Optimizer</a></li>
-# <li><a href="#regularization">Regularization</a></li>
+# <li><a href="#part-2-model-training">第二部分：模型训练</a></li>
+# <li><a href="#training">训练</a><ul>
+# <li><a href="#batches-and-masking">批处理和掩码</a></li>
+# <li><a href="#training-loop">训练循环</a></li>
+# <li><a href="#training-data-and-batching">训练数据和批处理</a></li>
+# <li><a href="#hardware-and-schedule">硬件和调度</a></li>
+# <li><a href="#optimizer">优化器</a></li>
+# <li><a href="#regularization">正则化</a></li>
 # </ul></li>
-# <li><a href="#a-first-example">A First Example</a><ul>
-# <li><a href="#synthetic-data">Synthetic Data</a></li>
-# <li><a href="#loss-computation">Loss Computation</a></li>
-# <li><a href="#greedy-decoding">Greedy Decoding</a></li>
+# <li><a href="#a-first-example">第一个示例</a><ul>
+# <li><a href="#synthetic-data">合成数据</a></li>
+# <li><a href="#loss-computation">损失计算</a></li>
+# <li><a href="#greedy-decoding">贪婪解码</a></li>
 # </ul></li>
-# <li><a href="#part-3-a-real-world-example">Part 3: A Real World Example</a>
+# <li><a href="#part-3-a-real-world-example">第三部分：真实世界示例</a>
 # <ul>
-# <li><a href="#data-loading">Data Loading</a></li>
-# <li><a href="#iterators">Iterators</a></li>
-# <li><a href="#training-the-system">Training the System</a></li>
+# <li><a href="#data-loading">数据加载</a></li>
+# <li><a href="#iterators">迭代器</a></li>
+# <li><a href="#training-the-system">系统训练</a></li>
 # </ul></li>
-# <li><a href="#additional-components-bpe-search-averaging">Additional
-# Components: BPE, Search, Averaging</a></li>
-# <li><a href="#results">Results</a><ul>
-# <li><a href="#attention-visualization">Attention Visualization</a></li>
-# <li><a href="#encoder-self-attention">Encoder Self Attention</a></li>
-# <li><a href="#decoder-self-attention">Decoder Self Attention</a></li>
-# <li><a href="#decoder-src-attention">Decoder Src Attention</a></li>
+# <li><a href="#additional-components-bpe-search-averaging">附加组件：BPE、搜索、平均</a></li>
+# <li><a href="#results">结果</a><ul>
+# <li><a href="#attention-visualization">注意力可视化</a></li>
+# <li><a href="#encoder-self-attention">编码器自注意力</a></li>
+# <li><a href="#decoder-self-attention">解码器自注意力</a></li>
+# <li><a href="#decoder-src-attention">解码器源注意力</a></li>
 # </ul></li>
-# <li><a href="#conclusion">Conclusion</a></li>
+# <li><a href="#conclusion">结论</a></li>
 # </ul>
 
 
@@ -172,59 +166,37 @@ class DummyScheduler:
 
 
 # %% [markdown] id="jx49WRyfTsp-"
-# > My comments are blockquoted. The main text is all from the paper itself.
+# > 我的评论以引用块的形式呈现。正文内容均来自论文本身。
 
 # %% [markdown] id="7phVeWghTsp_"
-# # Background
+# # 背景
 
 # %% [markdown] id="83ZDS91dTsqA"
 #
-# The goal of reducing sequential computation also forms the
-# foundation of the Extended Neural GPU, ByteNet and ConvS2S, all of
-# which use convolutional neural networks as basic building block,
-# computing hidden representations in parallel for all input and
-# output positions. In these models, the number of operations required
-# to relate signals from two arbitrary input or output positions grows
-# in the distance between positions, linearly for ConvS2S and
-# logarithmically for ByteNet. This makes it more difficult to learn
-# dependencies between distant positions. In the Transformer this is
-# reduced to a constant number of operations, albeit at the cost of
-# reduced effective resolution due to averaging attention-weighted
-# positions, an effect we counteract with Multi-Head Attention.
+# 减少序列计算的目标也构成了扩展神经GPU、ByteNet和ConvS2S的基础,这些模型都使用卷积神经网络作为基本构建块,
+# 并行计算所有输入和输出位置的隐藏表示。在这些模型中,关联两个任意输入或输出位置的信号所需的操作数随着位置之间的
+# 距离而增长,ConvS2S呈线性增长,ByteNet呈对数增长。这使得学习远距离位置之间的依赖关系变得更加困难。在Transformer中,
+# 这被减少到恒定数量的操作,尽管代价是由于对注意力加权位置进行平均而导致有效分辨率降低,我们通过多头注意力机制来抵消这种影响。
 #
-# Self-attention, sometimes called intra-attention is an attention
-# mechanism relating different positions of a single sequence in order
-# to compute a representation of the sequence. Self-attention has been
-# used successfully in a variety of tasks including reading
-# comprehension, abstractive summarization, textual entailment and
-# learning task-independent sentence representations. End-to-end
-# memory networks are based on a recurrent attention mechanism instead
-# of sequencealigned recurrence and have been shown to perform well on
-# simple-language question answering and language modeling tasks.
+# 自注意力(有时称为内部注意力)是一种将单个序列的不同位置关联起来以计算序列表示的注意力机制。自注意力已经在多种任务中
+# 成功应用,包括阅读理解、抽象摘要、文本蕴含和学习与任务无关的句子表示。端到端记忆网络基于循环注意力机制而不是序列对齐的
+# 循环机制,已被证明在简单语言问答和语言建模任务上表现良好。
 #
-# To the best of our knowledge, however, the Transformer is the first
-# transduction model relying entirely on self-attention to compute
-# representations of its input and output without using sequence
-# aligned RNNs or convolution.
+# 然而,据我们所知,Transformer是第一个完全依赖自注意力来计算其输入和输出表示的转导模型,不使用序列对齐的RNN或卷积。
 
 # %% [markdown]
-# # Part 1: Model Architecture
+# # 第一部分：模型架构
 
 # %% [markdown] id="pFrPajezTsqB"
-# # Model Architecture
+# # 模型架构
 
 # %% [markdown] id="ReuU_h-fTsqB"
 #
-# Most competitive neural sequence transduction models have an
-# encoder-decoder structure
-# [(cite)](https://arxiv.org/abs/1409.0473). Here, the encoder maps an
-# input sequence of symbol representations $(x_1, ..., x_n)$ to a
-# sequence of continuous representations $\mathbf{z} = (z_1, ...,
-# z_n)$. Given $\mathbf{z}$, the decoder then generates an output
-# sequence $(y_1,...,y_m)$ of symbols one element at a time. At each
-# step the model is auto-regressive
-# [(cite)](https://arxiv.org/abs/1308.0850), consuming the previously
-# generated symbols as additional input when generating the next.
+# 大多数具有竞争力的神经序列转导模型都具有编码器-解码器结构
+# [(引用)](https://arxiv.org/abs/1409.0473)。在这里,编码器将符号表示的输入序列$(x_1, ..., x_n)$映射到
+# 连续表示序列$\mathbf{z} = (z_1, ..., z_n)$。给定$\mathbf{z}$,解码器然后一次生成一个符号,
+# 生成输出序列$(y_1,...,y_m)$。在每一步,模型都是自回归的
+# [(引用)](https://arxiv.org/abs/1308.0850),在生成下一个符号时将先前生成的符号作为额外输入。
 
 # %% id="k0XGXhzRTsqB"
 class EncoderDecoder(nn.Module):
@@ -266,21 +238,19 @@ class Generator(nn.Module):
 
 # %% [markdown] id="mOoEnF_jTsqC"
 #
-# The Transformer follows this overall architecture using stacked
-# self-attention and point-wise, fully connected layers for both the
-# encoder and decoder, shown in the left and right halves of Figure 1,
-# respectively.
+# Transformer遵循这种整体架构，对编码器和解码器都使用堆叠的自注意力层和逐点全连接层，
+# 分别如图1的左半部分和右半部分所示。
 
 # %% [markdown] id="oredWloYTsqC"
 # ![](images/ModalNet-21.png)
 
 
 # %% [markdown] id="bh092NZBTsqD"
-# ## Encoder and Decoder Stacks
+# ## 编码器和解码器堆叠
 #
-# ### Encoder
+# ### 编码器
 #
-# The encoder is composed of a stack of $N=6$ identical layers.
+# 编码器由$N=6$个相同的层堆叠而成。
 
 # %% id="2gxTApUYTsqD"
 def clones(module, N):
@@ -306,10 +276,9 @@ class Encoder(nn.Module):
 
 # %% [markdown] id="GjAKgjGwTsqD"
 #
-# We employ a residual connection
-# [(cite)](https://arxiv.org/abs/1512.03385) around each of the two
-# sub-layers, followed by layer normalization
-# [(cite)](https://arxiv.org/abs/1607.06450).
+# 我们在两个子层的周围都使用了残差连接
+# [(引用)](https://arxiv.org/abs/1512.03385)，并在其后进行层归一化
+# [(引用)](https://arxiv.org/abs/1607.06450)。
 
 # %% id="3jKa_prZTsqE"
 class LayerNorm(nn.Module):
@@ -329,16 +298,13 @@ class LayerNorm(nn.Module):
 
 # %% [markdown] id="nXSJ3QYmTsqE"
 #
-# That is, the output of each sub-layer is $\mathrm{LayerNorm}(x +
-# \mathrm{Sublayer}(x))$, where $\mathrm{Sublayer}(x)$ is the function
-# implemented by the sub-layer itself.  We apply dropout
-# [(cite)](http://jmlr.org/papers/v15/srivastava14a.html) to the
-# output of each sub-layer, before it is added to the sub-layer input
-# and normalized.
+# 也就是说，每个子层的输出是 $\mathrm{LayerNorm}(x + \mathrm{Sublayer}(x))$，
+# 其中 $\mathrm{Sublayer}(x)$ 是由子层本身实现的函数。我们在每个子层的输出上
+# 应用 dropout [(引用)](http://jmlr.org/papers/v15/srivastava14a.html)，
+# 然后将其与子层的输入相加并进行归一化。
 #
-# To facilitate these residual connections, all sub-layers in the
-# model, as well as the embedding layers, produce outputs of dimension
-# $d_{\text{model}}=512$.
+# 为了便于实现这些残差连接，模型中的所有子层以及嵌入层都产生维度为
+# $d_{\text{model}}=512$ 的输出。
 
 # %% id="U1P7zI0eTsqE"
 class SublayerConnection(nn.Module):
@@ -359,9 +325,8 @@ class SublayerConnection(nn.Module):
 
 # %% [markdown] id="ML6oDlEqTsqE"
 #
-# Each layer has two sub-layers. The first is a multi-head
-# self-attention mechanism, and the second is a simple, position-wise
-# fully connected feed-forward network.
+# 每一层都包含两个子层。第一个是多头自注意力机制，第二个是简单的基于位置的
+# 全连接前馈网络。
 
 # %% id="qYkUFr6GTsqE"
 class EncoderLayer(nn.Module):
@@ -403,11 +368,8 @@ class Decoder(nn.Module):
 
 # %% [markdown] id="dXlCB12pTsqF"
 #
-# In addition to the two sub-layers in each encoder layer, the decoder
-# inserts a third sub-layer, which performs multi-head attention over
-# the output of the encoder stack.  Similar to the encoder, we employ
-# residual connections around each of the sub-layers, followed by
-# layer normalization.
+# 除了每个编码器层中的两个子层外，解码器还插入了第三个子层，该子层对编码器栈的输出执行多头注意力计算。
+# 与编码器类似，我们在每个子层周围使用残差连接，然后进行层归一化。
 
 # %% id="M2hA1xFQTsqF"
 class DecoderLayer(nn.Module):
@@ -431,11 +393,8 @@ class DecoderLayer(nn.Module):
 
 # %% [markdown] id="FZz5rLl4TsqF"
 #
-# We also modify the self-attention sub-layer in the decoder stack to
-# prevent positions from attending to subsequent positions.  This
-# masking, combined with fact that the output embeddings are offset by
-# one position, ensures that the predictions for position $i$ can
-# depend only on the known outputs at positions less than $i$.
+# 我们还修改了解码器栈中的自注意力子层，以防止位置关注后续位置。这种掩码机制，
+# 结合输出嵌入偏移一个位置的事实，确保了位置 $i$ 的预测只能依赖于位置小于 $i$ 的已知输出。
 
 # %% id="QN98O2l3TsqF"
 def subsequent_mask(size):
@@ -449,9 +408,8 @@ def subsequent_mask(size):
 
 # %% [markdown] id="Vg_f_w-PTsqG"
 #
-# > Below the attention mask shows the position each tgt word (row) is
-# > allowed to look at (column). Words are blocked for attending to
-# > future words during training.
+# > 下面的注意力掩码展示了每个目标词（行）被允许关注的位置（列）。
+# > 在训练过程中，词语被阻止关注未来的词。
 
 # %% id="ht_FtgYAokC4"
 def example_mask():
@@ -485,31 +443,23 @@ def example_mask():
 show_example(example_mask)
 
 # %% [markdown] id="Qto_yg7BTsqG"
-# ### Attention
-#
-# An attention function can be described as mapping a query and a set
-# of key-value pairs to an output, where the query, keys, values, and
-# output are all vectors.  The output is computed as a weighted sum of
-# the values, where the weight assigned to each value is computed by a
-# compatibility function of the query with the corresponding key.
-#
-# We call our particular attention "Scaled Dot-Product Attention".
-# The input consists of queries and keys of dimension $d_k$, and
-# values of dimension $d_v$.  We compute the dot products of the query
-# with all keys, divide each by $\sqrt{d_k}$, and apply a softmax
-# function to obtain the weights on the values.
-#
-#
-#
+# ### 注意力机制
+
+# 注意力函数可以描述为将一个查询(query)和一组键值对(key-value pairs)映射到一个输出的过程，
+# 其中查询、键、值和输出都是向量。输出是值的加权和，其中分配给每个值的权重是通过查询和相应键之间的
+# 相容性函数计算得到的。
+
+# 我们将我们特定的注意力机制称为"缩放点积注意力"(Scaled Dot-Product Attention)。
+# 输入包含维度为$d_k$的查询和键，以及维度为$d_v$的值。我们计算查询和所有键的点积，
+# 将每个点积除以$\sqrt{d_k}$，然后应用softmax函数来获得值的权重。
+
 # ![](images/ModalNet-19.png)
 
 
 # %% [markdown] id="EYJLWk6cTsqG"
 #
-# In practice, we compute the attention function on a set of queries
-# simultaneously, packed together into a matrix $Q$.  The keys and
-# values are also packed together into matrices $K$ and $V$.  We
-# compute the matrix of outputs as:
+# 在实践中，我们同时对一组查询计算注意力函数，将它们打包到一个矩阵$Q$中。键和值也被打包到
+# 矩阵$K$和$V$中。我们按如下方式计算输出矩阵：
 #
 # $$
 #    \mathrm{Attention}(Q, K, V) = \mathrm{softmax}(\frac{QK^T}{\sqrt{d_k}})V
@@ -530,30 +480,18 @@ def attention(query, key, value, mask=None, dropout=None):
 
 # %% [markdown] id="jUkpwu8kTsqG"
 #
-# The two most commonly used attention functions are additive
-# attention [(cite)](https://arxiv.org/abs/1409.0473), and dot-product
-# (multiplicative) attention.  Dot-product attention is identical to
-# our algorithm, except for the scaling factor of
-# $\frac{1}{\sqrt{d_k}}$. Additive attention computes the
-# compatibility function using a feed-forward network with a single
-# hidden layer.  While the two are similar in theoretical complexity,
-# dot-product attention is much faster and more space-efficient in
-# practice, since it can be implemented using highly optimized matrix
-# multiplication code.
+# 两种最常用的注意力函数是加性注意力[(引用)](https://arxiv.org/abs/1409.0473)和点积
+# (乘性)注意力。点积注意力与我们的算法相同，只是多了一个缩放因子$\frac{1}{\sqrt{d_k}}$。
+# 加性注意力使用一个具有单个隐藏层的前馈网络来计算相容性函数。虽然这两种方法在理论复杂度上
+# 相似，但点积注意力在实践中更快且空间效率更高，因为它可以使用高度优化的矩阵乘法代码来实现。
 #
 #
-# While for small values of $d_k$ the two mechanisms perform
-# similarly, additive attention outperforms dot product attention
-# without scaling for larger values of $d_k$
-# [(cite)](https://arxiv.org/abs/1703.03906). We suspect that for
-# large values of $d_k$, the dot products grow large in magnitude,
-# pushing the softmax function into regions where it has extremely
-# small gradients (To illustrate why the dot products get large,
-# assume that the components of $q$ and $k$ are independent random
-# variables with mean $0$ and variance $1$.  Then their dot product,
-# $q \cdot k = \sum_{i=1}^{d_k} q_ik_i$, has mean $0$ and variance
-# $d_k$.). To counteract this effect, we scale the dot products by
-# $\frac{1}{\sqrt{d_k}}$.
+# 虽然对于较小的$d_k$值，这两种机制表现相似，但在没有缩放的情况下，当$d_k$值较大时，
+# 加性注意力的性能优于点积注意力[(引用)](https://arxiv.org/abs/1703.03906)。我们推测，
+# 对于较大的$d_k$值，点积的幅度会变得很大，将softmax函数推入梯度极小的区域(为说明点积
+# 为什么会变大，假设$q$和$k$的分量是均值为$0$、方差为$1$的独立随机变量。那么它们的点积
+# $q \cdot k = \sum_{i=1}^{d_k} q_ik_i$的均值为$0$，方差为$d_k$)。为了抵消这种效果，
+# 我们用$\frac{1}{\sqrt{d_k}}$对点积进行缩放。
 #
 #
 
@@ -563,27 +501,23 @@ def attention(query, key, value, mask=None, dropout=None):
 
 # %% [markdown] id="TNtVyZ-pTsqH"
 #
-# Multi-head attention allows the model to jointly attend to
-# information from different representation subspaces at different
-# positions. With a single attention head, averaging inhibits this.
+# 多头注意力使模型能够在不同位置同时关注来自不同表示子空间的信息。使用单个注意力头会
+# 因为平均化而抑制这种能力。
 #
 # $$
 # \mathrm{MultiHead}(Q, K, V) =
 #     \mathrm{Concat}(\mathrm{head_1}, ..., \mathrm{head_h})W^O \\
-#     \text{where}~\mathrm{head_i} = \mathrm{Attention}(QW^Q_i, KW^K_i, VW^V_i)
+#     \text{其中}~\mathrm{head_i} = \mathrm{Attention}(QW^Q_i, KW^K_i, VW^V_i)
 # $$
 #
-# Where the projections are parameter matrices $W^Q_i \in
-# \mathbb{R}^{d_{\text{model}} \times d_k}$, $W^K_i \in
-# \mathbb{R}^{d_{\text{model}} \times d_k}$, $W^V_i \in
-# \mathbb{R}^{d_{\text{model}} \times d_v}$ and $W^O \in
-# \mathbb{R}^{hd_v \times d_{\text{model}}}$.
+# 其中投影是参数矩阵$W^Q_i \in \mathbb{R}^{d_{\text{model}} \times d_k}$、
+# $W^K_i \in \mathbb{R}^{d_{\text{model}} \times d_k}$、
+# $W^V_i \in \mathbb{R}^{d_{\text{model}} \times d_v}$和
+# $W^O \in \mathbb{R}^{hd_v \times d_{\text{model}}}$。
 #
-# In this work we employ $h=8$ parallel attention layers, or
-# heads. For each of these we use $d_k=d_v=d_{\text{model}}/h=64$. Due
-# to the reduced dimension of each head, the total computational cost
-# is similar to that of single-head attention with full
-# dimensionality.
+# 在本工作中，我们使用了$h=8$个并行的注意力层，即头。对于每个头，我们使用
+# $d_k=d_v=d_{\text{model}}/h=64$。由于每个头的维度减小，总的计算成本与使用
+# 完整维度的单头注意力相似。
 
 # %% id="D2LBMKCQTsqH"
 class MultiHeadedAttention(nn.Module):
@@ -629,49 +563,31 @@ class MultiHeadedAttention(nn.Module):
 
 
 # %% [markdown] id="EDRba3J3TsqH"
-# ### Applications of Attention in our Model
-#
-# The Transformer uses multi-head attention in three different ways:
-# 1) In "encoder-decoder attention" layers, the queries come from the
-# previous decoder layer, and the memory keys and values come from the
-# output of the encoder.  This allows every position in the decoder to
-# attend over all positions in the input sequence.  This mimics the
-# typical encoder-decoder attention mechanisms in sequence-to-sequence
-# models such as [(cite)](https://arxiv.org/abs/1609.08144).
-#
-#
-# 2) The encoder contains self-attention layers.  In a self-attention
-# layer all of the keys, values and queries come from the same place,
-# in this case, the output of the previous layer in the encoder.  Each
-# position in the encoder can attend to all positions in the previous
-# layer of the encoder.
-#
-#
-# 3) Similarly, self-attention layers in the decoder allow each
-# position in the decoder to attend to all positions in the decoder up
-# to and including that position.  We need to prevent leftward
-# information flow in the decoder to preserve the auto-regressive
-# property.  We implement this inside of scaled dot-product attention
-# by masking out (setting to $-\infty$) all values in the input of the
-# softmax which correspond to illegal connections.
+# ### 我们模型中注意力机制的应用
+
+# Transformer以三种不同的方式使用多头注意力:
+# 1) 在"编码器-解码器注意力"层中,查询来自前一个解码器层,而记忆键和值来自编码器的输出。
+# 这使得解码器的每个位置都能关注输入序列的所有位置。这模仿了序列到序列模型中典型的编码器-解码器
+# 注意力机制,如[(引用)](https://arxiv.org/abs/1609.08144)。
+
+# 2) 编码器包含自注意力层。在自注意力层中,所有的键、值和查询都来自同一个地方,在这种情况下,
+# 是编码器中前一层的输出。编码器中的每个位置都可以关注编码器前一层的所有位置。
+
+# 3) 类似地,解码器中的自注意力层允许解码器的每个位置关注解码器中直到该位置(包括该位置)的所有位置。
+# 我们需要防止解码器中的信息向左流动以保持自回归特性。我们通过在缩放点积注意力中将softmax输入中
+# 对应于非法连接的所有值屏蔽(设置为$-\infty$)来实现这一点。
 
 # %% [markdown] id="M-en97_GTsqH"
-# ## Position-wise Feed-Forward Networks
-#
-# In addition to attention sub-layers, each of the layers in our
-# encoder and decoder contains a fully connected feed-forward network,
-# which is applied to each position separately and identically.  This
-# consists of two linear transformations with a ReLU activation in
-# between.
-#
+# ## 位置前馈网络
+
+# 除了注意力子层外,我们的编码器和解码器中的每一层都包含一个全连接前馈网络,
+# 该网络分别且相同地应用于每个位置。这包括两个线性变换,中间有一个ReLU激活函数。
+
 # $$\mathrm{FFN}(x)=\max(0, xW_1 + b_1) W_2 + b_2$$
-#
-# While the linear transformations are the same across different
-# positions, they use different parameters from layer to
-# layer. Another way of describing this is as two convolutions with
-# kernel size 1.  The dimensionality of input and output is
-# $d_{\text{model}}=512$, and the inner-layer has dimensionality
-# $d_{ff}=2048$.
+
+# 虽然不同位置的线性变换是相同的,但它们在不同层之间使用不同的参数。
+# 另一种描述方式是将其视为核大小为1的两个卷积。输入和输出的维度是
+# $d_{\text{model}}=512$,内层的维度是$d_{ff}=2048$。
 
 # %% id="6HHCemCxTsqH"
 class PositionwiseFeedForward(nn.Module):
@@ -688,17 +604,12 @@ class PositionwiseFeedForward(nn.Module):
 
 
 # %% [markdown] id="dR1YM520TsqH"
-# ## Embeddings and Softmax
+# ## 嵌入和Softmax
 #
-# Similarly to other sequence transduction models, we use learned
-# embeddings to convert the input tokens and output tokens to vectors
-# of dimension $d_{\text{model}}$.  We also use the usual learned
-# linear transformation and softmax function to convert the decoder
-# output to predicted next-token probabilities.  In our model, we
-# share the same weight matrix between the two embedding layers and
-# the pre-softmax linear transformation, similar to
-# [(cite)](https://arxiv.org/abs/1608.05859). In the embedding layers,
-# we multiply those weights by $\sqrt{d_{\text{model}}}$.
+# 与其他序列转导模型类似，我们使用学习得到的嵌入将输入标记和输出标记转换为维度为$d_{\text{model}}$的向量。
+# 我们还使用常规的学习得到的线性变换和softmax函数将解码器输出转换为预测下一个标记的概率。
+# 在我们的模型中，两个嵌入层和softmax前的线性变换共享相同的权重矩阵，这类似于
+# [(引用)](https://arxiv.org/abs/1608.05859)。在嵌入层中，我们将这些权重乘以$\sqrt{d_{\text{model}}}$。
 
 # %% id="pyrChq9qTsqH"
 class Embeddings(nn.Module):
@@ -712,35 +623,27 @@ class Embeddings(nn.Module):
 
 
 # %% [markdown] id="vOkdui-cTsqH"
-# ## Positional Encoding
+# ## 位置编码
 #
-# Since our model contains no recurrence and no convolution, in order
-# for the model to make use of the order of the sequence, we must
-# inject some information about the relative or absolute position of
-# the tokens in the sequence.  To this end, we add "positional
-# encodings" to the input embeddings at the bottoms of the encoder and
-# decoder stacks.  The positional encodings have the same dimension
-# $d_{\text{model}}$ as the embeddings, so that the two can be summed.
-# There are many choices of positional encodings, learned and fixed
-# [(cite)](https://arxiv.org/pdf/1705.03122.pdf).
+# 由于我们的模型不包含循环和卷积结构，为了让模型能够利用序列的顺序信息，我们必须
+# 在序列中注入一些关于标记相对或绝对位置的信息。为此，我们在编码器和解码器堆栈的底部
+# 为输入嵌入添加"位置编码"。位置编码具有与嵌入相同的维度$d_{\text{model}}$，
+# 因此两者可以相加。位置编码有多种选择，包括可学习的和固定的
+# [(引用)](https://arxiv.org/pdf/1705.03122.pdf)。
 #
-# In this work, we use sine and cosine functions of different frequencies:
+# 在本工作中，我们使用不同频率的正弦和余弦函数：
 #
 # $$PE_{(pos,2i)} = \sin(pos / 10000^{2i/d_{\text{model}}})$$
 #
 # $$PE_{(pos,2i+1)} = \cos(pos / 10000^{2i/d_{\text{model}}})$$
 #
-# where $pos$ is the position and $i$ is the dimension.  That is, each
-# dimension of the positional encoding corresponds to a sinusoid.  The
-# wavelengths form a geometric progression from $2\pi$ to $10000 \cdot
-# 2\pi$.  We chose this function because we hypothesized it would
-# allow the model to easily learn to attend by relative positions,
-# since for any fixed offset $k$, $PE_{pos+k}$ can be represented as a
-# linear function of $PE_{pos}$.
+# 其中$pos$是位置，$i$是维度。也就是说，位置编码的每个维度对应一个正弦曲线。
+# 波长构成了从$2\pi$到$10000 \cdot 2\pi$的几何级数。我们选择这个函数是因为
+# 我们假设它能让模型轻松学习关注相对位置，因为对于任何固定偏移量$k$，$PE_{pos+k}$
+# 都可以表示为$PE_{pos}$的线性函数。
 #
-# In addition, we apply dropout to the sums of the embeddings and the
-# positional encodings in both the encoder and decoder stacks.  For
-# the base model, we use a rate of $P_{drop}=0.1$.
+# 此外，我们对编码器和解码器堆栈中的嵌入和位置编码的和应用dropout。
+# 对于基础模型，我们使用$P_{drop}=0.1$的比率。
 #
 #
 
@@ -770,9 +673,7 @@ class PositionalEncoding(nn.Module):
 
 # %% [markdown] id="EfHacTJLTsqH"
 #
-# > Below the positional encoding will add in a sine wave based on
-# > position. The frequency and offset of the wave is different for
-# > each dimension.
+# > 下面的位置编码将基于位置添加正弦波。波的频率和偏移在每个维度上都不相同。
 
 # %% id="rnvHk_1QokC6" type="example"
 def example_positional():
@@ -806,17 +707,14 @@ show_example(example_positional)
 
 # %% [markdown] id="g8rZNCrzTsqI"
 #
-# We also experimented with using learned positional embeddings
-# [(cite)](https://arxiv.org/pdf/1705.03122.pdf) instead, and found
-# that the two versions produced nearly identical results.  We chose
-# the sinusoidal version because it may allow the model to extrapolate
-# to sequence lengths longer than the ones encountered during
-# training.
+# 我们还尝试使用学习得到的位置嵌入[(引用)](https://arxiv.org/pdf/1705.03122.pdf)，
+# 发现两种版本产生了几乎相同的结果。我们选择正弦版本是因为它可能允许模型推广到比训练
+# 期间遇到的序列更长的序列长度。
 
 # %% [markdown] id="iwNKCzlyTsqI"
-# ## Full Model
+# ## 完整模型
 #
-# > Here we define a function from hyperparameters to a full model.
+# > 这里我们定义一个从超参数到完整模型的函数。
 
 # %% id="mPe1ES0UTsqI"
 def make_model(
@@ -844,14 +742,11 @@ def make_model(
 
 
 # %% [markdown]
-# ## Inference:
+# ## 推理:
 #
-# > Here we make a forward step to generate a prediction of the
-# model. We try to use our transformer to memorize the input. As you
-# will see the output is randomly generated due to the fact that the
-# model is not trained yet. In the next tutorial we will build the
-# training function and try to train our model to memorize the numbers
-# from 1 to 10.
+# > 这里我们进行一个前向步骤来生成模型的预测。我们尝试使用我们的transformer来记忆输入。
+# 由于模型还未经过训练，你会看到输出是随机生成的。在下一个教程中，我们将构建训练函数，
+# 并尝试训练我们的模型来记忆1到10的数字。
 
 # %%
 def inference_test():
@@ -886,22 +781,21 @@ show_example(run_tests)
 
 
 # %% [markdown]
-# # Part 2: Model Training
+# # 第二部分：模型训练
 
 # %% [markdown] id="05s6oT9fTsqI"
-# # Training
+# # 训练
 #
-# This section describes the training regime for our models.
+# 本节描述我们模型的训练方案。
 
 # %% [markdown] id="fTxlofs4TsqI"
 #
-# > We stop for a quick interlude to introduce some of the tools
-# > needed to train a standard encoder decoder model. First we define a
-# > batch object that holds the src and target sentences for training,
-# > as well as constructing the masks.
+# > 我们暂停一下,介绍一些训练标准编码器-解码器模型所需的工具。
+# > 首先我们定义一个batch对象,用于在训练时保存源序列和目标序列,
+# > 同时构建相应的掩码。
 
 # %% [markdown] id="G7SkCenXTsqI"
-# ## Batches and Masking
+# ## 批处理和掩码
 
 # %%
 class Batch:
@@ -928,12 +822,11 @@ class Batch:
 
 # %% [markdown] id="cKkw5GjLTsqI"
 #
-# > Next we create a generic training and scoring function to keep
-# > track of loss. We pass in a generic loss compute function that
-# > also handles parameter updates.
+# > 接下来我们创建一个通用的训练和评分函数来跟踪损失。我们传入一个通用的损失计算函数,
+# > 该函数同时也处理参数更新。
 
 # %% [markdown] id="Q8zzeUc0TsqJ"
-# ## Training Loop
+# ## 训练循环
 
 # %%
 class TrainState:
@@ -1001,37 +894,29 @@ def run_epoch(
 
 
 # %% [markdown] id="aB1IF0foTsqJ"
-# ## Training Data and Batching
+# ## 训练数据和批处理
 #
-# We trained on the standard WMT 2014 English-German dataset
-# consisting of about 4.5 million sentence pairs.  Sentences were
-# encoded using byte-pair encoding, which has a shared source-target
-# vocabulary of about 37000 tokens. For English-French, we used the
-# significantly larger WMT 2014 English-French dataset consisting of
-# 36M sentences and split tokens into a 32000 word-piece vocabulary.
+# 我们在标准的WMT 2014英德数据集上进行训练,该数据集包含约450万个句子对。
+# 使用字节对编码(byte-pair encoding)对句子进行编码,共享的源语言-目标语言词表大小约为37000个词元。
+# 对于英法翻译,我们使用了明显更大的WMT 2014英法数据集,其包含3600万个句子,
+# 并将词元分割成32000个词片(word-piece)词表。
 #
-#
-# Sentence pairs were batched together by approximate sequence length.
-# Each training batch contained a set of sentence pairs containing
-# approximately 25000 source tokens and 25000 target tokens.
+# 根据序列的近似长度将句子对组合成批次。每个训练批次包含一组句子对,
+# 大约包含25000个源语言词元和25000个目标语言词元。
 
 # %% [markdown] id="F1mTQatiTsqJ" jp-MarkdownHeadingCollapsed=true tags=[]
-# ## Hardware and Schedule
+# ## 硬件和训练计划
 #
-# We trained our models on one machine with 8 NVIDIA P100 GPUs.  For
-# our base models using the hyperparameters described throughout the
-# paper, each training step took about 0.4 seconds.  We trained the
-# base models for a total of 100,000 steps or 12 hours. For our big
-# models, step time was 1.0 seconds.  The big models were trained for
-# 300,000 steps (3.5 days).
+# 我们在一台配备8个NVIDIA P100 GPU的机器上训练模型。对于使用论文中描述的超参数的基础模型,
+# 每个训练步骤大约需要0.4秒。我们训练基础模型共100,000步,总计12小时。对于我们的大型模型,
+# 每步训练时间为1.0秒。大型模型训练了300,000步(3.5天)。
 
 # %% [markdown] id="-utZeuGcTsqJ"
-# ## Optimizer
+# ## 优化器
 #
-# We used the Adam optimizer [(cite)](https://arxiv.org/abs/1412.6980)
-# with $\beta_1=0.9$, $\beta_2=0.98$ and $\epsilon=10^{-9}$.  We
-# varied the learning rate over the course of training, according to
-# the formula:
+# 我们使用Adam优化器[(引用)](https://arxiv.org/abs/1412.6980),
+# 参数设置为$\beta_1=0.9$、$\beta_2=0.98$和$\epsilon=10^{-9}$。
+# 在训练过程中,我们根据以下公式调整学习率:
 #
 # $$
 # lrate = d_{\text{model}}^{-0.5} \cdot
@@ -1039,20 +924,16 @@ def run_epoch(
 #     {step\_num} \cdot {warmup\_steps}^{-1.5})
 # $$
 #
-# This corresponds to increasing the learning rate linearly for the
-# first $warmup\_steps$ training steps, and decreasing it thereafter
-# proportionally to the inverse square root of the step number.  We
-# used $warmup\_steps=4000$.
+# 这相当于在前$warmup\_steps$个训练步骤中线性增加学习率,之后按步数的平方根的倒数
+# 比例减小学习率。我们使用$warmup\_steps=4000$。
 
 # %% [markdown] id="39FbYnt-TsqJ"
 #
-# > Note: This part is very important. Need to train with this setup
-# > of the model.
+# > 注意:这部分非常重要。需要使用这种设置来训练模型。
 
 # %% [markdown] id="hlbojFkjTsqJ"
 #
-# > Example of the curves of this model for different model sizes and
-# > for optimization hyperparameters.
+# > 这个模型在不同模型大小和优化超参数下的学习曲线示例。
 
 # %% id="zUz3PdAnVg4o"
 def rate(step, model_size, factor, warmup):
@@ -1128,21 +1009,21 @@ example_learning_schedule()
 
 
 # %% [markdown] id="7T1uD15VTsqK"
-# ## Regularization
+# ## 正则化
 #
-# ### Label Smoothing
+# ### 标签平滑
 #
-# During training, we employed label smoothing of value
-# $\epsilon_{ls}=0.1$ [(cite)](https://arxiv.org/abs/1512.00567).
-# This hurts perplexity, as the model learns to be more unsure, but
-# improves accuracy and BLEU score.
+# 在训练过程中，我们使用了值为$\epsilon_{ls}=0.1$的标签平滑技术
+# [(引用)](https://arxiv.org/abs/1512.00567)。
+# 这会降低困惑度，因为模型学会了更加不确定，但是
+# 提高了准确率和BLEU分数。
 
 # %% [markdown] id="kNoAVD8bTsqK"
 #
-# > We implement label smoothing using the KL div loss. Instead of
-# > using a one-hot target distribution, we create a distribution that
-# > has `confidence` of the correct word and the rest of the
-# > `smoothing` mass distributed throughout the vocabulary.
+# > 我们使用KL散度损失来实现标签平滑。我们不使用
+# > one-hot目标分布，而是创建一个分布，使其对正确词有
+# > `confidence`的置信度，剩余的`smoothing`质量
+# > 分布在整个词表中。
 
 # %% id="shU2GyiETsqK"
 class LabelSmoothing(nn.Module):
@@ -1172,8 +1053,7 @@ class LabelSmoothing(nn.Module):
 
 # %% [markdown] id="jCxUrlUyTsqK"
 #
-# > Here we can see an example of how the mass is distributed to the
-# > words based on confidence.
+# > 这里我们可以看到基于置信度的词语概率质量分布的示例。
 
 # %% id="EZtKaaQNTsqK"
 # Example of label smoothing.
@@ -1225,8 +1105,7 @@ show_example(example_label_smoothing)
 
 # %% [markdown] id="CGM8J1veTsqK"
 #
-# > Label smoothing actually starts to penalize the model if it gets
-# > very confident about a given choice.
+# > 标签平滑实际上会在模型对某个选择变得过于自信时开始惩罚模型。
 
 # %% id="78EHzLP7TsqK"
 
@@ -1262,14 +1141,13 @@ show_example(penalization_visualization)
 
 
 # %% [markdown] id="67lUqeLXTsqK"
-# # A First  Example
+# # 第一个示例
 #
-# > We can begin by trying out a simple copy-task. Given a random set
-# > of input symbols from a small vocabulary, the goal is to generate
-# > back those same symbols.
+# > 我们可以从尝试一个简单的复制任务开始。给定一个来自小型词汇表的随机输入符号集，
+# > 目标是生成回相同的符号。
 
 # %% [markdown] id="jJa-89_pTsqK"
-# ## Synthetic Data
+# ## 合成数据
 
 # %% id="g1aTxeqqTsqK"
 def data_gen(V, batch_size, nbatches):
@@ -1283,7 +1161,7 @@ def data_gen(V, batch_size, nbatches):
 
 
 # %% [markdown] id="XTXwD9hUTsqK"
-# ## Loss Computation
+# ## 损失计算
 
 # %% id="3J8EJm87TsqK"
 class SimpleLossCompute:
@@ -1305,10 +1183,10 @@ class SimpleLossCompute:
 
 
 # %% [markdown] id="eDAI7ELUTsqL"
-# ## Greedy Decoding
+# ## 贪婪解码
 
 # %% [markdown] id="LFkWakplTsqL" tags=[]
-# > This code predicts a translation using greedy decoding for simplicity.
+# > 为了简单起见,这段代码使用贪婪解码来预测翻译结果。
 # %% id="N2UOpnT3bIyU"
 def greedy_decode(model, src, src_mask, max_len, start_symbol):
     memory = model.encode(src, src_mask)
@@ -1377,23 +1255,21 @@ def example_simple_model():
 
 
 # %% [markdown] id="OpuQv2GsTsqL"
-# # Part 3: A Real World Example
+# # 第三部分：真实世界示例
 #
-# > Now we consider a real-world example using the Multi30k
-# > German-English Translation task. This task is much smaller than
-# > the WMT task considered in the paper, but it illustrates the whole
-# > system. We also show how to use multi-gpu processing to make it
-# > really fast.
+# > 现在我们来看一个使用Multi30k德英翻译任务的真实世界示例。
+# > 这个任务比论文中考虑的WMT任务小得多，但它展示了整个
+# > 系统的工作原理。我们还将展示如何使用多GPU处理来
+# > 显著提升运行速度。
 
 # %% [markdown] id="8y9dpfolTsqL" tags=[]
-# ## Data Loading
+# ## 数据加载
 #
-# > We will load the dataset using torchtext and spacy for
-# > tokenization.
+# > 我们将使用torchtext和spacy进行数据集加载和
+# > 分词处理。
 
 # %%
-# Load spacy tokenizer models, download them if they haven't been
-# downloaded already
+# 加载spacy分词器模型，如果尚未下载则进行下载
 
 
 def load_tokenizers():
@@ -1475,14 +1351,13 @@ if is_interactive_notebook():
 
 # %% [markdown] id="-l-TFwzfTsqL"
 #
-# > Batching matters a ton for speed. We want to have very evenly
-# > divided batches, with absolutely minimal padding. To do this we
-# > have to hack a bit around the default torchtext batching. This
-# > code patches their default batching to make sure we search over
-# > enough sentences to find tight batches.
+# > 批处理对速度有很大影响。我们希望批次划分得非常均匀，
+# > 同时将填充降到最低。为此，我们需要对默认的torchtext批处理
+# > 进行一些修改。这段代码对默认的批处理进行了修补，以确保我们
+# > 能搜索足够多的句子来找到紧凑的批次。
 
 # %% [markdown] id="kDEj-hCgokC-" tags=[] jp-MarkdownHeadingCollapsed=true
-# ## Iterators
+# ## 迭代器
 
 # %% id="wGsIHFgOokC_" tags=[]
 def collate_batch(
@@ -1762,30 +1637,24 @@ if is_interactive_notebook():
 
 # %% [markdown] id="RZK_VjDPTsqN"
 #
-# > Once trained we can decode the model to produce a set of
-# > translations. Here we simply translate the first sentence in the
-# > validation set. This dataset is pretty small so the translations
-# > with greedy search are reasonably accurate.
+# > 训练完成后,我们可以对模型进行解码以生成一组翻译结果。这里我们仅翻译验证集中的第一个句子。
+# > 由于这个数据集比较小,使用贪婪搜索的翻译结果也相当准确。
 
 # %% [markdown] id="L50i0iEXTsqN"
-# # Additional Components: BPE, Search, Averaging
+# # 附加组件：BPE、搜索、平均
 
 # %% [markdown] id="NBx1C2_NTsqN"
 #
-# > So this mostly covers the transformer model itself. There are four
-# > aspects that we didn't cover explicitly. We also have all these
-# > additional features implemented in
-# > [OpenNMT-py](https://github.com/opennmt/opennmt-py).
+# > 到目前为止,我们主要介绍了Transformer模型本身。还有四个方面我们没有明确涉及。
+# > 这些额外的功能都已在[OpenNMT-py](https://github.com/opennmt/opennmt-py)中实现。
 #
 #
 
 # %% [markdown] id="UpqV1mWnTsqN"
 #
-# > 1) BPE/ Word-piece: We can use a library to first preprocess the
-# > data into subword units. See Rico Sennrich's
-# > [subword-nmt](https://github.com/rsennrich/subword-nmt)
-# > implementation. These models will transform the training data to
-# > look like this:
+# > 1) BPE/词片(Word-piece)：我们可以使用库来首先将数据预处理成子词单元。
+# > 参见Rico Sennrich的[subword-nmt](https://github.com/rsennrich/subword-nmt)
+# > 实现。这些模型会将训练数据转换成如下形式：
 
 # %% [markdown] id="hwJ_9J0BTsqN"
 # ▁Die ▁Protokoll datei ▁kann ▁ heimlich ▁per ▁E - Mail ▁oder ▁FTP
@@ -1793,10 +1662,8 @@ if is_interactive_notebook():
 
 # %% [markdown] id="9HwejYkpTsqN"
 #
-# > 2) Shared Embeddings: When using BPE with shared vocabulary we can
-# > share the same weight vectors between the source / target /
-# > generator. See the [(cite)](https://arxiv.org/abs/1608.05859) for
-# > details. To add this to the model simply do this:
+# > 2) 共享嵌入：当使用共享词表的BPE时,我们可以在源语言/目标语言/生成器之间共享相同的权重向量。
+# > 详见[(引用)](https://arxiv.org/abs/1608.05859)。要将此功能添加到模型中,只需执行以下操作：
 
 # %% id="tb3j3CYLTsqN" tags=[]
 if False:
@@ -1806,17 +1673,16 @@ if False:
 
 # %% [markdown] id="xDKJsSwRTsqN"
 #
-# > 3) Beam Search: This is a bit too complicated to cover here. See the
+# > 3) 集束搜索(Beam Search)：这里过于复杂,不做详细介绍。可以参考
 # > [OpenNMT-py](https://github.com/OpenNMT/OpenNMT-py/)
-# > for a pytorch implementation.
+# > 中的PyTorch实现。
 # >
 #
 
 # %% [markdown] id="wf3vVYGZTsqN"
 #
-# > 4) Model Averaging: The paper averages the last k checkpoints to
-# > create an ensembling effect. We can do this after the fact if we
-# > have a bunch of models:
+# > 4) 模型平均：论文通过对最后k个检查点取平均来创建集成效果。如果我们
+# > 有多个模型,可以在训练后执行这个操作：
 
 # %% id="hAFEa78JokDB"
 def average(model, models):
@@ -1826,22 +1692,17 @@ def average(model, models):
 
 
 # %% [markdown] id="Kz5BYJ9sTsqO"
-# # Results
+# # 结果
 #
-# On the WMT 2014 English-to-German translation task, the big
-# transformer model (Transformer (big) in Table 2) outperforms the
-# best previously reported models (including ensembles) by more than
-# 2.0 BLEU, establishing a new state-of-the-art BLEU score of
-# 28.4. The configuration of this model is listed in the bottom line
-# of Table 3. Training took 3.5 days on 8 P100 GPUs. Even our base
-# model surpasses all previously published models and ensembles, at a
-# fraction of the training cost of any of the competitive models.
+# 在WMT 2014英德翻译任务中,大型Transformer模型(表2中的Transformer (big))
+# 的表现超过了此前报告的最佳模型(包括集成模型)2.0以上的BLEU分数,
+# 创造了28.4的新的SOTA(state-of-the-art) BLEU分数。该模型的配置列在表3的
+# 最后一行。训练在8个P100 GPU上花费了3.5天。即使是我们的基础模型也超过了
+# 所有已发表的模型和集成模型,而且训练成本只是其他竞争模型的一小部分。
 #
-# On the WMT 2014 English-to-French translation task, our big model
-# achieves a BLEU score of 41.0, outperforming all of the previously
-# published single models, at less than 1/4 the training cost of the
-# previous state-of-the-art model. The Transformer (big) model trained
-# for English-to-French used dropout rate Pdrop = 0.1, instead of 0.3.
+# 在WMT 2014英法翻译任务中,我们的大型模型达到了41.0的BLEU分数,超过了
+# 所有此前发表的单模型,训练成本不到之前最先进模型的1/4。用于英法翻译的
+# Transformer (big)模型使用了dropout率Pdrop = 0.1,而不是0.3。
 #
 
 # %% [markdown]
@@ -1850,9 +1711,8 @@ def average(model, models):
 # %% [markdown] id="cPcnsHvQTsqO"
 #
 #
-# > With the addtional extensions in the last section, the OpenNMT-py
-# > replication gets to 26.9 on EN-DE WMT. Here I have loaded in those
-# > parameters to our reimplemenation.
+# > 使用上一节中的额外扩展,OpenNMT-py的复现在EN-DE WMT上达到了26.9。
+# > 这里我已经将这些参数加载到我们的重新实现中。
 
 # %%
 # Load data and model for output checks
@@ -1934,11 +1794,10 @@ def run_model_example(n_examples=5):
 
 
 # %% [markdown] id="0ZkkNTKLTsqO"
-# ## Attention Visualization
+# ## 注意力可视化
 #
-# > Even with a greedy decoder the translation looks pretty good. We
-# > can further visualize it to see what is happening at each layer of
-# > the attention
+# > 即使使用贪婪解码器，翻译的效果看起来也相当不错。我们
+# > 可以进一步将其可视化，以观察注意力机制在每一层中发生了什么
 
 # %%
 def mtx2df(m, max_row, max_col, row_tokens, col_tokens):
@@ -2120,12 +1979,12 @@ def viz_decoder_src():
 show_example(viz_decoder_src)
 
 # %% [markdown] id="nSseuCcATsqO"
-# # Conclusion
+# # 结论
 #
-#  Hopefully this code is useful for future research. Please reach
-#  out if you have any issues.
+# 希望这份代码能对未来的研究工作有所帮助。如果您遇到任何问题，
+# 请随时与我们联系。
 #
 #
-#  Cheers,
-#  Sasha Rush, Austin Huang, Suraj Subramanian, Jonathan Sum, Khalid Almubarak,
-#  Stella Biderman
+# 此致，
+# Sasha Rush、Austin Huang、Suraj Subramanian、Jonathan Sum、Khalid Almubarak、
+# Stella Biderman
